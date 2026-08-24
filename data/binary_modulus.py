@@ -38,8 +38,10 @@ class BinaryModulusGenerationConfig:
     bit_width: int = DEFAULT_BIT_WIDTH
     train_examples: int = DEFAULT_TRAIN_EXAMPLES
     val_examples: int = DEFAULT_VAL_EXAMPLES
+    test_examples: int = 0
     train_moduli: int = 512
     val_moduli: int = 128
+    test_moduli: int = 0
     seed: int = 46
 
     def __post_init__(self) -> None:
@@ -47,10 +49,19 @@ class BinaryModulusGenerationConfig:
             raise ValueError("bit_width must be at least 3")
         if self.train_examples < 1 or self.val_examples < 1:
             raise ValueError("train_examples and val_examples must be positive")
+        if self.test_examples < 0:
+            raise ValueError("test_examples must be nonnegative")
         if self.train_moduli < 1 or self.val_moduli < 1:
             raise ValueError("train_moduli and val_moduli must be positive")
+        if self.test_moduli < 0:
+            raise ValueError("test_moduli must be nonnegative")
+        if (self.test_examples == 0) != (self.test_moduli == 0):
+            raise ValueError(
+                "test_examples and test_moduli must either both be zero or both positive"
+            )
         available = 1 << (self.bit_width - 2)
-        if self.train_moduli + self.val_moduli > available:
+        requested_moduli = self.train_moduli + self.val_moduli + self.test_moduli
+        if requested_moduli > available:
             raise ValueError(
                 "requested modulus identities exceed the number of full-width "
                 f"odd {self.bit_width}-bit values ({available})"
@@ -164,6 +175,8 @@ def generate_binary_modulus_dataset(
     val_pool = modulus_candidates[
         config.train_moduli : config.train_moduli + config.val_moduli
     ]
+    test_start = config.train_moduli + config.val_moduli
+    test_pool = modulus_candidates[test_start : test_start + config.test_moduli]
     # Keep useful edge cases without allowing the exact-zero remainder from
     # boundary multiples to dominate whole-sequence accuracy.
     sources = (
@@ -180,10 +193,12 @@ def generate_binary_modulus_dataset(
     )
 
     records = []
-    split_specs = (
+    split_specs = [
         ("train", config.train_examples, train_pool),
         ("val", config.val_examples, val_pool),
-    )
+    ]
+    if config.test_examples:
+        split_specs.append(("test", config.test_examples, test_pool))
     for split, examples, moduli in split_specs:
         seen: set[tuple[int, int]] = set()
         while len(seen) < examples:
@@ -224,14 +239,18 @@ def generate_binary_modulus_dataset(
         "bit_width": config.bit_width,
         "x_bit_width": 2 * config.bit_width,
         "max_seq_len": 2 + 4 * config.bit_width,
-        "num_examples": config.train_examples + config.val_examples,
+        "num_examples": (
+            config.train_examples + config.val_examples + config.test_examples
+        ),
         "split_counts": {
             "train": config.train_examples,
             "val": config.val_examples,
+            **({"test": config.test_examples} if config.test_examples else {}),
         },
         "split_modulus_counts": {
             "train": config.train_moduli,
             "val": config.val_moduli,
+            **({"test": config.test_moduli} if config.test_moduli else {}),
         },
         "value_sources": sorted(set(sources)),
         "source_weights": {
@@ -253,8 +272,10 @@ def cli() -> None:
     parser.add_argument("--bit-width", type=int, default=DEFAULT_BIT_WIDTH)
     parser.add_argument("--train-examples", type=int, default=DEFAULT_TRAIN_EXAMPLES)
     parser.add_argument("--val-examples", type=int, default=DEFAULT_VAL_EXAMPLES)
+    parser.add_argument("--test-examples", type=int, default=0)
     parser.add_argument("--train-moduli", type=int, default=512)
     parser.add_argument("--val-moduli", type=int, default=128)
+    parser.add_argument("--test-moduli", type=int, default=0)
     parser.add_argument("--seed", type=int, default=46)
     args = parser.parse_args()
     result = generate_binary_modulus_dataset(
@@ -263,8 +284,10 @@ def cli() -> None:
             bit_width=args.bit_width,
             train_examples=args.train_examples,
             val_examples=args.val_examples,
+            test_examples=args.test_examples,
             train_moduli=args.train_moduli,
             val_moduli=args.val_moduli,
+            test_moduli=args.test_moduli,
             seed=args.seed,
         )
     )

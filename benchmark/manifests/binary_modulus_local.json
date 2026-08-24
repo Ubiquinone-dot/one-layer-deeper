@@ -1,8 +1,8 @@
 {
-  "name": "binary-modulus-16bit-local",
+  "name": "binary-modulus-16bit-40k-train-local",
   "data": {
     "kind": "binary_modulus",
-    "data_root": "data/generated/binary_modulus_b16_n60k",
+    "data_root": "data/generated/binary_modulus_b16_train40k_val2k_test18k",
     "batch_size": 256,
     "eval_batch_size": 512,
     "shuffle_train": true,
@@ -10,7 +10,7 @@
     "num_workers": 0,
     "pin_memory": false,
     "drop_last": true,
-    "seed": 46
+    "seed": 48
   },
   "runtime": {
     "device": "cpu",

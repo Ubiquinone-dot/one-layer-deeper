@@ -55,6 +55,41 @@ class BinaryModulusTests(unittest.TestCase):
             self.assertTrue(all(row["remainder"] == row["x"] % row["modulus"] for row in train + val))
             self.assertEqual(config["split_counts"], {"train": 40, "val": 20})
 
+    def test_optional_test_split_is_disjoint_and_loadable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = generate_binary_modulus_dataset(
+                BinaryModulusGenerationConfig(
+                    output_dir=directory,
+                    bit_width=6,
+                    train_examples=24,
+                    val_examples=12,
+                    test_examples=12,
+                    train_moduli=6,
+                    val_moduli=3,
+                    test_moduli=3,
+                    seed=13,
+                )
+            )
+            root = Path(directory)
+            splits = {
+                name: [
+                    json.loads(line)
+                    for line in (root / f"{name}.jsonl").read_text().splitlines()
+                ]
+                for name in ("train", "val", "test")
+            }
+            modulus_sets = {
+                name: {row["modulus"] for row in rows}
+                for name, rows in splits.items()
+            }
+            self.assertTrue(modulus_sets["train"].isdisjoint(modulus_sets["val"]))
+            self.assertTrue(modulus_sets["train"].isdisjoint(modulus_sets["test"]))
+            self.assertTrue(modulus_sets["val"].isdisjoint(modulus_sets["test"]))
+            self.assertEqual(
+                config["split_counts"],
+                {"train": 24, "val": 12, "test": 12},
+            )
+
     def test_factory_preserves_separate_output_layout(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             generate_binary_modulus_dataset(
