@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-DatasetKind = Literal["squaring_mod"]
+DatasetKind = Literal["squaring_mod", "binary_squaring"]
 
 
 @dataclass(frozen=True)
@@ -22,8 +22,8 @@ class DataConfig:
     seed: int = 45
 
     def __post_init__(self) -> None:
-        if self.kind != "squaring_mod":
-            raise ValueError("data kind must be squaring_mod")
+        if self.kind not in ("squaring_mod", "binary_squaring"):
+            raise ValueError("data kind must be squaring_mod or binary_squaring")
         if self.batch_size < 1:
             raise ValueError("batch_size must be positive")
         if self.eval_batch_size is not None and self.eval_batch_size < 1:
@@ -33,6 +33,16 @@ class DataConfig:
 
 
 def infer_vocab_size(config: DataConfig) -> int:
+    if config.kind == "binary_squaring":
+        from .binary_squaring import (
+            VOCAB_SIZE,
+            load_binary_squaring_dataset_config,
+        )
+
+        if config.data_root is None:
+            return VOCAB_SIZE
+        return int(load_binary_squaring_dataset_config(config.data_root)["vocab_size"])
+
     from .squaring_mod import VOCAB_SIZE, load_squaring_mod_dataset_config
 
     if config.data_root is None:
@@ -41,6 +51,18 @@ def infer_vocab_size(config: DataConfig) -> int:
 
 
 def infer_max_seq_len(config: DataConfig) -> int:
+    if config.kind == "binary_squaring":
+        from .binary_squaring import (
+            DEFAULT_MAX_SEQ_LEN,
+            load_binary_squaring_dataset_config,
+        )
+
+        if config.data_root is None:
+            return DEFAULT_MAX_SEQ_LEN
+        return int(
+            load_binary_squaring_dataset_config(config.data_root)["max_seq_len"]
+        )
+
     from .squaring_mod import SMOKE_MAX_SEQ_LEN, load_squaring_mod_dataset_config
 
     if config.data_root is None:

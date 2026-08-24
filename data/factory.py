@@ -91,7 +91,28 @@ def _make_squaring_mod_dataloaders(
     )
 
 
+def _make_binary_squaring_dataloaders(
+    config: DataConfig, device: torch.device | None = None
+) -> dict[str, DataLoader]:
+    from .binary_squaring import (
+        BinarySquaringTokenizedDataset,
+        collate_binary_squaring,
+    )
+
+    if config.data_root is None:
+        raise ValueError("binary_squaring requires a generated data_root")
+    return _make_tokenized_counting_dataloaders(
+        config=config,
+        root=config.data_root,
+        dataset_class=BinarySquaringTokenizedDataset,
+        collate_fn=collate_binary_squaring,
+        device=device,
+    )
+
+
 def make_dataloaders(
     config: DataConfig, device: torch.device | None = None
 ) -> Mapping[str, DataLoader]:
+    if config.kind == "binary_squaring":
+        return _make_binary_squaring_dataloaders(config, device=device)
     return _make_squaring_mod_dataloaders(config, device=device)
