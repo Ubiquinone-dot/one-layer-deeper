@@ -110,9 +110,30 @@ def _make_binary_squaring_dataloaders(
     )
 
 
+def _make_binary_modulus_dataloaders(
+    config: DataConfig, device: torch.device | None = None
+) -> dict[str, DataLoader]:
+    from .binary_modulus import (
+        BinaryModulusTokenizedDataset,
+        collate_binary_modulus,
+    )
+
+    if config.data_root is None:
+        raise ValueError("binary_modulus requires a generated data_root")
+    return _make_tokenized_counting_dataloaders(
+        config=config,
+        root=config.data_root,
+        dataset_class=BinaryModulusTokenizedDataset,
+        collate_fn=collate_binary_modulus,
+        device=device,
+    )
+
+
 def make_dataloaders(
     config: DataConfig, device: torch.device | None = None
 ) -> Mapping[str, DataLoader]:
+    if config.kind == "binary_modulus":
+        return _make_binary_modulus_dataloaders(config, device=device)
     if config.kind == "binary_squaring":
         return _make_binary_squaring_dataloaders(config, device=device)
     return _make_squaring_mod_dataloaders(config, device=device)

@@ -1,0 +1,29 @@
+{
+  "name": "binary-modulus-16bit-local",
+  "data": {
+    "kind": "binary_modulus",
+    "data_root": "data/generated/binary_modulus_b16_n60k",
+    "batch_size": 256,
+    "eval_batch_size": 512,
+    "shuffle_train": true,
+    "shuffle_eval": false,
+    "num_workers": 0,
+    "pin_memory": false,
+    "drop_last": true,
+    "seed": 46
+  },
+  "runtime": {
+    "device": "cpu",
+    "dtype": "float32",
+    "amp": false,
+    "compile": false,
+    "total_training_time_seconds": 60,
+    "max_steps": 100000,
+    "seeds": [74],
+    "grad_clip": 1.0,
+    "log_every": 100
+  },
+  "model_state": {
+    "maximum_elements": 500000000
+  }
+}
