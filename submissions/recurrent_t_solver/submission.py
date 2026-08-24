@@ -87,6 +87,7 @@ class Model(nn.Module):
         self.config = Config(spec.vocab_size, spec.max_seq_len)
         self.token_embedding = nn.Embedding(spec.vocab_size, D_MODEL)
         self.position_embedding = nn.Embedding(spec.max_seq_len, D_MODEL)
+        self.digit_projection = nn.Linear(3, D_MODEL, bias=False)
         self.input_block = RecurrentBlock()
         self.recurrent_block = RecurrentBlock()
         self.source_norm = RMSNorm(D_MODEL)
@@ -119,6 +120,13 @@ class Model(nn.Module):
     ) -> tuple[Tensor, None]:
         positions = torch.arange(input_ids.shape[1], device=input_ids.device)
         source = self.token_embedding(input_ids) + self.position_embedding(positions)
+        is_digit = input_ids.ge(DIGIT_OFFSET) & input_ids.lt(DIGIT_OFFSET + 10)
+        digit_value = (input_ids - DIGIT_OFFSET).clamp(min=0, max=9).float() / 9.0
+        digit_features = torch.stack(
+            (digit_value, digit_value.square(), torch.sin(torch.pi * digit_value)),
+            dim=-1,
+        )
+        source = source + self.digit_projection(digit_features) * is_digit[:, :, None]
         encoded = self.input_block(source, attention_mask)
         state = encoded
         source_residual = self.source_projection(self.source_norm(encoded))
@@ -208,7 +216,31 @@ def token_training_loss(batch: TokenLossBatch) -> Tensor:
         (token_losses * batch.valid_mask).sum(dim=1)
         / target_counts.clamp_min(1)
     )
-    return sequence_losses[target_counts > 0].mean()
+    cross_entropy = sequence_losses[target_counts > 0].mean()
+
+    digit_probabilities = batch.logits.float().softmax(dim=-1)[
+        ..., DIGIT_OFFSET : DIGIT_OFFSET + 10
+    ]
+    digit_values = torch.arange(10, device=batch.logits.device).float()
+    expected_digits = (digit_probabilities * digit_values).sum(dim=-1)
+    target_digits = (batch.labels - DIGIT_OFFSET).clamp(min=0, max=9).float()
+    ordinal_distance = (
+        digit_probabilities
+        * (digit_values[None, None, :] - target_digits[:, :, None]).abs()
+    ).sum(dim=-1)
+    ordinal_loss = (
+        (ordinal_distance * batch.valid_mask).sum(dim=1)
+        / target_counts.clamp_min(1)
+    )[target_counts > 0].mean()
+
+    slot = torch.arange(batch.labels.shape[1], device=batch.logits.device)
+    exponents = (target_counts[:, None] - 1 - slot[None, :]).clamp_min(0)
+    place_values = torch.pow(10.0, exponents.float()) * batch.valid_mask
+    normalizer = torch.pow(10.0, target_counts.float()).clamp_min(1.0)
+    expected_numbers = (expected_digits * place_values).sum(dim=1) / normalizer
+    target_numbers = (target_digits * place_values).sum(dim=1) / normalizer
+    numeric_loss = F.smooth_l1_loss(expected_numbers, target_numbers)
+    return cross_entropy + 0.1 * ordinal_loss + numeric_loss
 
 
 def build_model(spec: ModelSpec) -> Model:
