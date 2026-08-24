@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-DatasetKind = Literal["squaring_mod", "binary_squaring", "binary_modulus"]
+DatasetKind = Literal[
+    "squaring_mod",
+    "binary_squaring",
+    "binary_modulus",
+    "binary_square_mod",
+]
 
 
 @dataclass(frozen=True)
@@ -22,9 +27,15 @@ class DataConfig:
     seed: int = 45
 
     def __post_init__(self) -> None:
-        if self.kind not in ("squaring_mod", "binary_squaring", "binary_modulus"):
+        if self.kind not in (
+            "squaring_mod",
+            "binary_squaring",
+            "binary_modulus",
+            "binary_square_mod",
+        ):
             raise ValueError(
-                "data kind must be squaring_mod, binary_squaring, or binary_modulus"
+                "data kind must be squaring_mod, binary_squaring, "
+                "binary_modulus, or binary_square_mod"
             )
         if self.batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -35,6 +46,17 @@ class DataConfig:
 
 
 def infer_vocab_size(config: DataConfig) -> int:
+    if config.kind == "binary_square_mod":
+        from .binary_square_mod import (
+            VOCAB_SIZE,
+            load_binary_square_mod_dataset_config,
+        )
+
+        if config.data_root is None:
+            return VOCAB_SIZE
+        return int(
+            load_binary_square_mod_dataset_config(config.data_root)["vocab_size"]
+        )
     if config.kind == "binary_modulus":
         from .binary_modulus import VOCAB_SIZE, load_binary_modulus_dataset_config
 
@@ -59,6 +81,17 @@ def infer_vocab_size(config: DataConfig) -> int:
 
 
 def infer_max_seq_len(config: DataConfig) -> int:
+    if config.kind == "binary_square_mod":
+        from .binary_square_mod import (
+            DEFAULT_MAX_SEQ_LEN,
+            load_binary_square_mod_dataset_config,
+        )
+
+        if config.data_root is None:
+            return DEFAULT_MAX_SEQ_LEN
+        return int(
+            load_binary_square_mod_dataset_config(config.data_root)["max_seq_len"]
+        )
     if config.kind == "binary_modulus":
         from .binary_modulus import (
             DEFAULT_MAX_SEQ_LEN,
